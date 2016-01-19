@@ -1,0 +1,7 @@
+## Interface: 11200
+## Title: CrapFilter
+## Author: Axtroz of Nostalrius PVP
+## Notes: Blocks messages containing words or phrases
+## SavedVariables: CrapFilterDB
+CrapFilter.lua
+CrapFilter.xml
