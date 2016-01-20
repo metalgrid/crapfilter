@@ -1,101 +1,169 @@
+--[[
+    CrapFilter
+    Copyright (C) 2016  Iskren Hadzhinedev
 
-function Print(x) return DEFAULT_CHAT_FRAME:AddMessage(x) end
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+]]--
+
+local help = {
+	"Syntax: /crapfilter <command> [arguments]",
+	"Commands:",
+	"add <phrase> - Adds a phrase to the filter",
+	"del <phrase> - Deletes a phrase from the filter",
+	"list  - Displays the content of the filter",
+	"stats - Shows amount of blocked messages and phrases",
+	"reset - Resets the filter and statistics"
+}
+
+local function Print(x, skip)
+	local prefix = "CrapFilter: "
+	if (skip) then
+		prefix = ""
+	end
+	return DEFAULT_CHAT_FRAME:AddMessage(prefix .. x)
+end
 
 function CrapFilter_OnLoad()
 
-	if (CrapFilterDB == nil) then
-		CrapFilterDB = {};
-	end
+	-- Database initializers
+	if (CrapFilterDB == nil) then CrapFilterDB = {} end
+	if (CrapFilterStats == nil) then CrapFilterStats = 0 end
 
-	SLASH_CRAPFILTER1 = "/cf";
-	SLASH_CRAPFILTER2 = "/crapfilter";
-	SlashCmdList["CRAPFILTER"] = CrapFilter_SlashCommand;
+	-- Slash command registry
+	SLASH_CRAPFILTER1 = "/cf"
+	SLASH_CRAPFILTER2 = "/crapfilter"
+	SlashCmdList["CRAPFILTER"] = CrapFilter_SlashCommand
 
-	this:RegisterEvent("CHAT_MSG_WHISPER");
-	this:RegisterEvent("CHAT_MSG_CHANNEL");
-	this:RegisterEvent("CHAT_MSG_SYSTEM");
-	this:RegisterEvent("VARIABLES_LOADED");
-	BlizzChatFrame_OnEvent = ChatFrame_OnEvent;
-	ChatFrame_OnEvent = CrapFilter_Filter;
+	-- Subscribe to events
+	this:RegisterEvent("CHAT_MSG_WHISPER")
+	this:RegisterEvent("CHAT_MSG_CHANNEL")
+	this:RegisterEvent("CHAT_MSG_SYSTEM")
+	this:RegisterEvent("VARIABLES_LOADED")
+
+	-- Override chat frame events
+	BlizzChatFrame_OnEvent = ChatFrame_OnEvent
+	ChatFrame_OnEvent = CrapFilter_ChatFrame_Override
 end
 
-function CrapFilter_Filter(event)
+function CrapFilter_Stats()
+	Print("Statistics")
+	Print("Blocked: " .. CrapFilterStats .. " messages")
+	Print("Filter: " .. table.getn(CrapFilterDB) .. " phrases")
+end
+
+function CrapFilter_ChatFrame_Override(event)
 	if (event == "CHAT_MSG_CHANNEL" or event == "CHAT_MSG_WHISPER") then
-		if (CrapFilterDB_Filter(arg1)) then
+		local message = arg1
+		local name = arg2
+		if (CrapFilter_Filter(message)) then
+			CrapFilterStats = CrapFilterStats + 1
 			return false
 		end
 	end
-	BlizzChatFrame_OnEvent(event, arg1, arg2);
+	BlizzChatFrame_OnEvent(event, message, name)
 	return true
 end
 
-function CrapFilterDB_Filter(message)
-	local count = 0
-
-	for i in CrapFilterDB do
-		count = count + 1
-		if (strfind(message, CrapFilterDB[count])) then
+function CrapFilter_Filter(message)
+	local msg = string.lower(message)
+	for index, keyword in CrapFilterDB do
+		if (string.find(msg, string.lower(keyword))) then
 			return true
 		end
 	end
 	return false
 end
 
-function CrapFilter_SlashCommand(msg)
-	local params = msg;
-	local cmd = params;
-	local index = strfind(cmd, " ");
-	if ( index ) then
-		cmd = strsub(cmd, 1, index-1);
-		params = strsub(params, index+1);
+function CrapFilter_SlashCommand(message)
+	-- Separate command from arguments (if any)
+	local paramstr = message
+	local cmd = paramstr
+	local index = strfind(cmd, " ")
+	if (index) then
+		cmd = strsub(cmd, 1, index-1)
+		paramstr = strsub(paramstr, index+1)
 	else
-		params = "";
+		paramstr = ""
 	end
 
 	if (not cmd) then
 		return nil
 	end
-
-	if (not params or params == "" or params == " ") then
-		cmd = nil
-	end
-
-	if cmd == "add" then
-		CrapFilterDB_AddPhrase(params)
-	elseif cmd == "del" then
-		Print("CrapFilter: Removing phrase " .. params);
-	elseif cmd == "reset" then
-		Print("CrapFilter: Resetting phrase DB");
-		CrapFilterDB = {};
-	else
-		Print("Syntax: /crapfilter (add | remove) <phrase>");
-	end
+	-- Handle commands
+	if cmd == "add" then CrapFilter_AddPhrase(paramstr)
+	elseif cmd == "del" then CrapFilter_DelPhrase(paramstr)
+	elseif cmd == "reset" then CrapFilter_Reset()
+	elseif cmd == "stats" then CrapFilter_Stats()
+	elseif cmd == "list" then CrapFilter_List()
+	else CrapFilter_Help() end
 end
 
 function CrapFilter_OnEvent(event)
 	if (event == "VARIABLES_LOADED") then
-		CrapFilter_VarsLoaded();
+		CrapFilter_Stats()
 	end
 end
 
-function CrapFilterDB_AddPhrase(phrase)
-	local count = 0
-	for i in CrapFilterDB do
-		count = count + 1
-		if CrapFilterDB[count] == phrase then
+function CrapFilter_AddPhrase(phrase)
+	if (strlen(phrase) == 0) then
+		return
+	end
+
+	phrase = string.lower(phrase)
+
+	for index, keyword in CrapFilterDB do
+		if keyword == phrase then
 			Print("Phrase " .. phrase .. " is already in the filter.")
 			return
 		end
 	end
 
-	CrapFilterDB[count+1] = phrase
-	Print("CrapFilter: Adding phrase " .. phrase);
+	table.insert(CrapFilterDB, phrase)
+	Print("Adding phrase " .. phrase)
 end
 
-function CrapFilter_VarsLoaded()
-	local count = 0
-	for i in CrapFilterDB do
-		count = count + 1
+function CrapFilter_DelPhrase(phrase)
+	if (strlen(phrase) == 0) then
+		return
 	end
-	Print("CrapFilter loaded, " .. count .. " phrases filtered.");
+	phrase = string.lower(phrase)
+
+	for index, keyword in CrapFilterDB do
+		if keyword == phrase then
+			table.remove(CrapFilterDB, index)
+			Print("Removing phrase " .. phrase)
+		end
+	end
+end
+
+function CrapFilter_Reset()
+	CrapFilterDB = {}
+	CrapFilterStats = 0
+	Print("Database reset.")
+end
+
+function CrapFilter_List()
+	Print("Filtered phrases:")
+	for index, keyword in CrapFilterDB do
+		Print(keyword, true)
+	end
+end
+
+function CrapFilter_Help()
+	Print("Help")
+	for index, helpline in help do
+		Print(helpline)
+	end
 end
