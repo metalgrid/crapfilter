@@ -24,7 +24,9 @@ local help = {
 	"del <phrase> - Deletes a phrase from the filter",
 	"list  - Displays the content of the filter",
 	"stats - Shows amount of blocked messages and phrases",
-	"reset - Resets the filter and statistics"
+	"reset - Resets the filter and statistics",
+	"enable - Enables chat filtering",
+	"disable - Disables chat filtering"
 }
 
 local function Print(x, skip)
@@ -39,7 +41,8 @@ function CrapFilter_OnLoad()
 
 	-- Database initializers
 	if (CrapFilterDB == nil) then CrapFilterDB = {} end
-	if (CrapFilterStats == nil) then CrapFilterStats = 0 end
+	if (CrapFilterDB.phrases == nil) then CrapFilterDB.phrases = {} end
+	if (CrapFilterDB.enabled == nil) then CrapFilterDB.enabled = 1 end
 
 	-- Slash command registry
 	SLASH_CRAPFILTER1 = "/cf"
@@ -58,17 +61,15 @@ function CrapFilter_OnLoad()
 end
 
 function CrapFilter_Stats()
-	Print("Statistics")
-	Print("Blocked: " .. CrapFilterStats .. " messages")
-	Print("Filter: " .. table.getn(CrapFilterDB) .. " phrases")
+	Print((CrapFilterDB.enabled and "Enabled" or "Disabled"))
+	Print("Filtering " .. table.getn(CrapFilterDB.phrases) .. " phrases")
 end
 
 function CrapFilter_ChatFrame_Override(event)
-	if (event == "CHAT_MSG_CHANNEL" or event == "CHAT_MSG_WHISPER") then
+	if CrapFilterDB.enabled and (event == "CHAT_MSG_CHANNEL" or event == "CHAT_MSG_WHISPER") then
 		local message = arg1
 		local name = arg2
 		if (CrapFilter_Filter(message)) then
-			CrapFilterStats = CrapFilterStats + 1
 			return false
 		end
 	end
@@ -78,7 +79,7 @@ end
 
 function CrapFilter_Filter(message)
 	local msg = string.lower(message)
-	for index, keyword in CrapFilterDB do
+	for index, keyword in CrapFilterDB.phrases do
 		if (string.find(msg, string.lower(keyword))) then
 			return true
 		end
@@ -107,6 +108,8 @@ function CrapFilter_SlashCommand(message)
 	elseif cmd == "reset" then CrapFilter_Reset()
 	elseif cmd == "stats" then CrapFilter_Stats()
 	elseif cmd == "list" then CrapFilter_List()
+	elseif cmd == "enable" then CrapFilter_Toggle(true)
+	elseif cmd == "disable" then CrapFilter_Toggle(false)
 	else CrapFilter_Help() end
 end
 
@@ -123,14 +126,14 @@ function CrapFilter_AddPhrase(phrase)
 
 	phrase = string.lower(phrase)
 
-	for index, keyword in CrapFilterDB do
+	for index, keyword in CrapFilterDB.phrases do
 		if keyword == phrase then
 			Print("Phrase " .. phrase .. " is already in the filter.")
 			return
 		end
 	end
 
-	table.insert(CrapFilterDB, phrase)
+	table.insert(CrapFilterDB.phrases, phrase)
 	Print("Adding phrase " .. phrase)
 end
 
@@ -140,9 +143,9 @@ function CrapFilter_DelPhrase(phrase)
 	end
 	phrase = string.lower(phrase)
 
-	for index, keyword in CrapFilterDB do
+	for index, keyword in CrapFilterDB.phrases do
 		if keyword == phrase then
-			table.remove(CrapFilterDB, index)
+			table.remove(CrapFilterDB.phrases, index)
 			Print("Removing phrase " .. phrase)
 		end
 	end
@@ -150,13 +153,14 @@ end
 
 function CrapFilter_Reset()
 	CrapFilterDB = {}
-	CrapFilterStats = 0
-	Print("Database reset.")
+	CrapFilterDB.phrases = {}
+	CrapFilterDB.enabled = 1
+	Print("AddOn reset")
 end
 
 function CrapFilter_List()
 	Print("Filtered phrases:")
-	for index, keyword in CrapFilterDB do
+	for index, keyword in CrapFilterDB.phrases do
 		Print(keyword, true)
 	end
 end
@@ -166,4 +170,9 @@ function CrapFilter_Help()
 	for index, helpline in help do
 		Print(helpline)
 	end
+end
+
+function CrapFilter_Toggle(state)
+	CrapFilterDB.enabled = state
+	Print(state and "enabled" or "disabled")
 end

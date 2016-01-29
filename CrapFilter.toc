@@ -2,7 +2,7 @@
 ## Title: CrapFilter
 ## Author: Axtroz of Nostalrius PVP
 ## Notes: Blocks messages containing words or phrases
-## SavedVariables: CrapFilterDB CrapFilterStats
+## SavedVariables: CrapFilterDB
 CrapFilter.lua
 CrapFilter.xml
 
